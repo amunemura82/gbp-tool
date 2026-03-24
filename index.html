@@ -1,1 +1,777 @@
 
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Googleビジネス投稿文ジェネレーター</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f; --surface: #13131a; --surface2: #1a1a24; --border: #2a2a3a;
+    --accent: #4ade80; --accent2: #818cf8; --accent3: #fb923c; --accent4: #38bdf8;
+    --text: #e8e8f0; --text-muted: #6b6b80; --text-dim: #9090a8;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'Noto Sans JP',sans-serif; min-height:100vh; overflow-x:hidden; }
+  body::before { content:''; position:fixed; inset:0; background-image:linear-gradient(rgba(74,222,128,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(74,222,128,0.03) 1px,transparent 1px); background-size:40px 40px; pointer-events:none; z-index:0; }
+  .container { max-width:920px; margin:0 auto; padding:0 20px 80px; position:relative; z-index:1; }
+
+  /* ONBOARDING */
+  #onboarding { position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:1000; display:flex; align-items:center; justify-content:center; padding:20px; backdrop-filter:blur(4px); }
+  .ob-card { background:var(--surface); border:1px solid var(--border); border-radius:20px; max-width:520px; width:100%; overflow:hidden; }
+  .ob-header { background:linear-gradient(135deg,rgba(74,222,128,0.12),rgba(129,140,248,0.08)); border-bottom:1px solid var(--border); padding:26px 28px 20px; text-align:center; }
+  .ob-logo { font-size:36px; margin-bottom:10px; }
+  .ob-title { font-size:19px; font-weight:900; margin-bottom:6px; }
+  .ob-title span { color:var(--accent); }
+  .ob-subtitle { font-size:13px; color:var(--text-dim); line-height:1.6; }
+  .ob-steps { padding:18px 26px; }
+  .ob-step { display:flex; gap:12px; padding:12px 0; border-bottom:1px solid var(--border); }
+  .ob-step:last-child { border-bottom:none; }
+  .ob-num { width:24px; height:24px; background:rgba(74,222,128,0.15); border:1px solid rgba(74,222,128,0.4); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:var(--accent); flex-shrink:0; margin-top:2px; }
+  .ob-step-title { font-size:13px; font-weight:700; margin-bottom:3px; }
+  .ob-step-desc { font-size:12px; color:var(--text-dim); line-height:1.6; }
+  .ob-step-desc a { color:var(--accent2); text-decoration:none; }
+  .ob-footer { padding:14px 26px 22px; }
+  .btn-start { width:100%; padding:14px; background:var(--accent); border:none; border-radius:10px; color:#0a0a0f; font-family:'Noto Sans JP',sans-serif; font-size:15px; font-weight:700; cursor:pointer; transition:all 0.2s; }
+  .btn-start:hover { background:#6ee7a0; transform:translateY(-1px); }
+  .ob-skip { text-align:center; margin-top:9px; }
+  .ob-skip a { font-size:11px; color:var(--text-muted); cursor:pointer; text-decoration:underline; }
+
+  /* HEADER */
+  header { text-align:center; padding:36px 0 28px; }
+  .badge { display:inline-flex; align-items:center; gap:6px; background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.3); border-radius:100px; padding:5px 14px; font-size:11px; font-family:'Space Mono',monospace; color:var(--accent); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:16px; }
+  .badge::before { content:'◆'; font-size:8px; }
+  h1 { font-size:clamp(24px,5vw,40px); font-weight:900; line-height:1.15; letter-spacing:-0.02em; margin-bottom:8px; }
+  h1 span { color:var(--accent); }
+  .subtitle { color:var(--text-dim); font-size:13px; line-height:1.7; }
+
+  /* API BAR */
+  .api-bar { background:var(--surface); border:1px solid var(--border); border-radius:11px; padding:12px 16px; margin-bottom:16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .api-label { font-size:10px; font-family:'Space Mono',monospace; color:var(--accent2); letter-spacing:0.1em; text-transform:uppercase; white-space:nowrap; }
+
+  /* TABS */
+  .main-tabs { display:flex; gap:3px; background:var(--surface); border:1px solid var(--border); border-radius:11px; padding:3px; margin-bottom:20px; }
+  .main-tab { flex:1; padding:9px 5px; border-radius:8px; border:none; background:transparent; color:var(--text-dim); font-family:'Noto Sans JP',sans-serif; font-size:12px; cursor:pointer; transition:all 0.15s; text-align:center; }
+  .main-tab.active { background:var(--surface2); color:var(--text); border:1px solid var(--border); }
+  .main-tab:hover:not(.active) { color:var(--text); }
+  .pane { display:none; } .pane.active { display:block; }
+
+  /* STORE SETTINGS */
+  .settings-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:22px 26px; margin-bottom:18px; position:relative; overflow:hidden; }
+  .settings-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,var(--accent2),var(--accent4),transparent); }
+  .settings-title { font-size:11px; font-family:'Space Mono',monospace; color:var(--accent2); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:14px; }
+  .settings-grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+  .field { display:flex; flex-direction:column; gap:6px; }
+  .field.full { grid-column:1/-1; }
+  label { font-size:10px; font-family:'Space Mono',monospace; color:var(--accent); letter-spacing:0.1em; text-transform:uppercase; display:flex; align-items:center; gap:5px; }
+  label .required { color:var(--accent3); font-size:9px; }
+  input, select, textarea { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text); font-family:'Noto Sans JP',sans-serif; font-size:13px; transition:border-color 0.2s,box-shadow 0.2s; outline:none; width:100%; }
+  input::placeholder, textarea::placeholder { color:var(--text-muted); }
+  select option { background:var(--surface2); }
+  input:focus, select:focus, textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(74,222,128,0.1); }
+  textarea { resize:vertical; min-height:70px; }
+
+  /* STEP FLOW */
+  .flow-steps { display:flex; align-items:center; gap:0; margin-bottom:20px; }
+  .flow-step { display:flex; align-items:center; gap:8px; padding:10px 16px; border-radius:8px; font-size:12px; font-weight:700; color:var(--text-muted); flex:1; }
+  .flow-step.active { color:var(--accent); background:rgba(74,222,128,0.07); border:1px solid rgba(74,222,128,0.2); }
+  .flow-step.done { color:var(--text-muted); }
+  .flow-arrow { color:var(--border); font-size:16px; flex-shrink:0; }
+  .flow-num { width:22px; height:22px; border-radius:50%; background:rgba(74,222,128,0.15); border:1px solid rgba(74,222,128,0.3); display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--accent); flex-shrink:0; }
+  .flow-step.done .flow-num { background:rgba(74,222,128,0.3); }
+
+  /* SUGGEST CARD */
+  .suggest-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:18px; }
+  .suggest-header { padding:16px 22px; background:rgba(56,189,248,0.06); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .suggest-header-left { }
+  .suggest-header-title { font-size:13px; font-weight:700; color:var(--accent4); margin-bottom:2px; }
+  .suggest-header-sub { font-size:11px; color:var(--text-muted); }
+  .btn-suggest { padding:10px 20px; background:var(--accent4); border:none; border-radius:8px; color:#0a0a0f; font-family:'Noto Sans JP',sans-serif; font-size:13px; font-weight:700; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
+  .btn-suggest:hover { background:#7dd3fc; transform:translateY(-1px); }
+  .btn-suggest:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+  .suggest-loading { display:none; text-align:center; padding:32px; }
+  .suggest-loading.show { display:block; }
+  .suggest-spinner { width:32px; height:32px; border:3px solid var(--border); border-top-color:var(--accent4); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 12px; }
+  .suggest-body { padding:18px 22px; display:none; }
+  .suggest-body.show { display:block; }
+  .suggest-intro { font-size:12px; color:var(--text-dim); margin-bottom:14px; line-height:1.6; }
+  .suggest-intro strong { color:var(--accent4); }
+  .topic-cards { display:grid; gap:10px; }
+  .topic-card {
+    padding:14px 16px; border-radius:10px; border:1px solid var(--border);
+    background:var(--surface2); cursor:pointer; transition:all 0.15s;
+    display:flex; gap:12px; align-items:flex-start;
+  }
+  .topic-card:hover { border-color:var(--accent); background:rgba(74,222,128,0.05); }
+  .topic-card.selected { border-color:var(--accent); background:rgba(74,222,128,0.1); }
+  .topic-emoji { font-size:22px; flex-shrink:0; }
+  .topic-content { flex:1; }
+  .topic-title { font-size:14px; font-weight:700; margin-bottom:3px; }
+  .topic-desc { font-size:12px; color:var(--text-dim); line-height:1.5; }
+  .topic-tags { display:flex; gap:5px; margin-top:6px; flex-wrap:wrap; }
+  .topic-tag { font-size:10px; padding:2px 7px; border-radius:100px; background:rgba(74,222,128,0.1); border:1px solid rgba(74,222,128,0.25); color:var(--accent); font-family:'Space Mono',monospace; }
+  .topic-check { width:20px; height:20px; border-radius:50%; border:2px solid var(--border); display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px; transition:all 0.15s; }
+  .topic-card.selected .topic-check { background:var(--accent); border-color:var(--accent); color:#0a0a0f; font-size:11px; font-weight:700; }
+
+  /* GENERATE CARD */
+  .gen-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:24px 26px; margin-bottom:18px; position:relative; overflow:hidden; display:none; }
+  .gen-card.show { display:block; }
+  .gen-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,var(--accent),var(--accent2),transparent); }
+  .gen-card-title { font-size:11px; font-family:'Space Mono',monospace; color:var(--accent); letter-spacing:0.1em; text-transform:uppercase; margin-bottom:16px; }
+  .selected-topic-preview { background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.25); border-radius:8px; padding:10px 14px; margin-bottom:16px; font-size:13px; color:var(--text-dim); }
+  .selected-topic-preview strong { color:var(--accent); }
+  .chips { display:flex; flex-wrap:wrap; gap:7px; }
+  .chip { padding:6px 12px; border-radius:100px; border:1px solid var(--border); background:var(--surface2); color:var(--text-dim); font-size:12px; cursor:pointer; transition:all 0.15s; user-select:none; }
+  .chip:hover { border-color:var(--accent); color:var(--accent); }
+  .chip.active { background:rgba(74,222,128,0.15); border-color:var(--accent); color:var(--accent); }
+  .tone-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .tone-card { padding:11px; border-radius:9px; border:1px solid var(--border); background:var(--surface2); cursor:pointer; transition:all 0.15s; text-align:center; }
+  .tone-card:hover { border-color:var(--accent2); }
+  .tone-card.active { background:rgba(129,140,248,0.12); border-color:var(--accent2); }
+  .tone-card .emoji { font-size:18px; margin-bottom:3px; }
+  .tone-card .tone-name { font-size:11px; font-weight:700; }
+  .tone-card .tone-desc { font-size:10px; color:var(--text-muted); margin-top:1px; }
+  .gen-form-grid { display:grid; gap:14px; margin-bottom:16px; }
+  .gen-form-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+
+  /* BUTTONS */
+  .btn-generate { width:100%; padding:16px; background:var(--accent); border:none; border-radius:10px; color:#0a0a0f; font-family:'Noto Sans JP',sans-serif; font-size:15px; font-weight:700; cursor:pointer; transition:all 0.2s; }
+  .btn-generate:hover { background:#6ee7a0; transform:translateY(-1px); box-shadow:0 8px 28px rgba(74,222,128,0.3); }
+  .btn-generate:active { transform:translateY(0); }
+  .btn-generate:disabled { opacity:0.5; cursor:not-allowed; transform:none; }
+
+  /* LOADING / RESULT */
+  .loading { text-align:center; padding:44px; display:none; }
+  .loading.show { display:block; }
+  .spinner { width:38px; height:38px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 14px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-text { color:var(--text-dim); font-size:13px; font-family:'Space Mono',monospace; }
+  .result-area { display:none; }
+  .result-area.show { display:block; }
+  .result-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:8px; }
+  .result-title { font-size:12px; font-family:'Space Mono',monospace; color:var(--accent); letter-spacing:0.08em; display:flex; align-items:center; gap:7px; }
+  .result-title::before { content:''; display:inline-block; width:7px; height:7px; background:var(--accent); border-radius:50%; animation:pulse 1.5s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.5;transform:scale(0.8);} }
+  .result-btns { display:flex; gap:6px; flex-wrap:wrap; }
+  .btn-sm { padding:6px 12px; background:transparent; border:1px solid var(--border); border-radius:6px; color:var(--text-dim); font-size:11px; font-family:'Space Mono',monospace; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
+  .btn-sm:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-sm.done { border-color:var(--accent); color:var(--accent); background:rgba(74,222,128,0.1); }
+  .result-sections { display:grid; gap:12px; }
+  .result-section { background:var(--surface); border:1px solid var(--border); border-radius:11px; overflow:hidden; animation:fadeUp 0.4s ease forwards; opacity:0; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);} }
+  .result-section:nth-child(1){animation-delay:0.05s;} .result-section:nth-child(2){animation-delay:0.15s;} .result-section:nth-child(3){animation-delay:0.25s;} .result-section:nth-child(4){animation-delay:0.35s;}
+  .section-label { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:10px 14px; background:var(--surface2); border-bottom:1px solid var(--border); font-size:10px; font-family:'Space Mono',monospace; letter-spacing:0.1em; text-transform:uppercase; }
+  .section-label.green{color:var(--accent);} .section-label.purple{color:var(--accent2);} .section-label.orange{color:var(--accent3);} .section-label.blue{color:var(--accent4);}
+  .copy-btn { padding:2px 8px; background:transparent; border:1px solid currentColor; border-radius:4px; color:inherit; font-size:10px; font-family:'Space Mono',monospace; cursor:pointer; opacity:0.6; transition:opacity 0.15s; }
+  .copy-btn:hover { opacity:1; }
+  .section-content { padding:16px; font-size:14px; line-height:1.8; white-space:pre-wrap; word-break:break-word; }
+  .hashtag-text { color:var(--accent2); }
+  .timing-grid { display:grid; gap:8px; padding:12px; }
+  .timing-item { display:flex; gap:10px; align-items:flex-start; padding:10px; background:var(--surface2); border-radius:7px; border:1px solid var(--border); }
+  .timing-icon { font-size:18px; flex-shrink:0; }
+  .timing-title { font-size:12px; font-weight:700; color:var(--accent3); margin-bottom:2px; }
+  .timing-detail { font-size:12px; color:var(--text-dim); line-height:1.5; }
+  .btn-regen { width:100%; padding:12px; background:transparent; border:1px solid var(--border); border-radius:9px; color:var(--text-dim); font-family:'Noto Sans JP',sans-serif; font-size:13px; cursor:pointer; transition:all 0.2s; margin-top:12px; }
+  .btn-regen:hover { border-color:var(--accent2); color:var(--accent2); }
+  .error-box { background:rgba(251,114,60,0.1); border:1px solid rgba(251,114,60,0.3); border-radius:9px; padding:12px 15px; color:var(--accent3); font-size:13px; display:none; margin-bottom:12px; line-height:1.65; }
+  .error-box.show { display:block; }
+
+  /* POST GUIDE */
+  #postGuide { background:var(--surface); border:1px solid var(--border); border-radius:13px; overflow:hidden; margin-top:18px; display:none; }
+  #postGuide.show { display:block; }
+  .guide-header { padding:13px 17px; background:rgba(56,189,248,0.07); border-bottom:1px solid var(--border); }
+  .guide-header-title { font-size:12px; font-weight:700; color:var(--accent4); }
+  .guide-header-sub { font-size:11px; color:var(--text-muted); margin-top:1px; }
+  .stepper { padding:16px; }
+  .step-dots { display:flex; gap:5px; margin-bottom:16px; }
+  .step-dot { width:28px; height:4px; border-radius:2px; background:var(--border); transition:background 0.3s; cursor:pointer; }
+  .step-dot.active { background:var(--accent4); }
+  .step-panel-title { font-size:13px; font-weight:700; margin-bottom:9px; display:flex; align-items:center; gap:9px; }
+  .step-icon { width:28px; height:28px; background:rgba(56,189,248,0.14); border:1px solid rgba(56,189,248,0.3); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+  .step-panel-body { font-size:12px; color:var(--text-dim); line-height:1.85; min-height:90px; }
+  .step-panel-body strong { color:var(--text); }
+  .step-panel-body .url-box { display:block; background:var(--surface2); border:1px solid var(--border); border-radius:7px; padding:8px 12px; font-family:'Space Mono',monospace; font-size:11px; color:var(--accent2); margin:8px 0; word-break:break-all; }
+  .step-panel-body .hl { display:inline-block; background:rgba(74,222,128,0.11); border:1px solid rgba(74,222,128,0.28); border-radius:5px; padding:1px 7px; color:var(--accent); font-size:11px; font-family:'Space Mono',monospace; margin:1px 2px; }
+  .step-nav { display:flex; gap:8px; margin-top:12px; }
+  .step-btn { padding:8px 16px; border-radius:7px; font-family:'Noto Sans JP',sans-serif; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.15s; border:none; }
+  .step-btn-next { background:var(--accent4); color:#0a0a0f; }
+  .step-btn-next:hover { background:#7dd3fc; }
+  .step-btn-prev { background:transparent; border:1px solid var(--border); color:var(--text-dim); }
+  .step-btn-prev:hover { border-color:var(--accent4); color:var(--accent4); }
+  .step-btn-done { background:var(--accent); color:#0a0a0f; }
+  .step-btn-done:hover { background:#6ee7a0; }
+
+  /* FAQ */
+  .faq-section-title { font-size:10px; font-family:'Space Mono',monospace; color:var(--text-muted); letter-spacing:0.12em; text-transform:uppercase; margin:20px 0 8px; }
+  .faq-section-title:first-child { margin-top:0; }
+  .faq-list { display:grid; gap:8px; }
+  .faq-item { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .faq-q { display:flex; align-items:center; justify-content:space-between; padding:13px 16px; cursor:pointer; gap:10px; transition:background 0.15s; }
+  .faq-q:hover { background:var(--surface2); }
+  .faq-q-text { font-size:13px; font-weight:700; flex:1; }
+  .faq-icon { width:18px; height:18px; border-radius:50%; background:rgba(74,222,128,0.13); border:1px solid rgba(74,222,128,0.28); display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--accent); flex-shrink:0; transition:transform 0.25s; }
+  .faq-item.open .faq-icon { transform:rotate(45deg); }
+  .faq-a { display:none; padding:0 16px 13px; font-size:13px; color:var(--text-dim); line-height:1.8; }
+  .faq-item.open .faq-a { display:block; }
+  .faq-a a { color:var(--accent2); text-decoration:none; }
+  .faq-a a:hover { text-decoration:underline; }
+  .faq-a .code { font-family:'Space Mono',monospace; font-size:11px; color:var(--accent); background:rgba(74,222,128,0.08); padding:1px 6px; border-radius:4px; }
+
+  /* HOWTO */
+  .howto-step { background:var(--surface2); border-radius:10px; padding:15px; border:1px solid var(--border); display:flex; gap:11px; align-items:flex-start; }
+  .howto-icon { min-width:28px; height:28px; background:rgba(56,189,248,0.13); border:1px solid rgba(56,189,248,0.28); border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .howto-title { font-size:13px; font-weight:700; margin-bottom:5px; }
+  .howto-body { font-size:12px; color:var(--text-dim); line-height:1.75; }
+  .howto-body strong { color:var(--text); }
+  .howto-body a { color:var(--accent2); text-decoration:none; }
+
+  @media(max-width:640px){
+    .settings-grid{grid-template-columns:1fr 1fr;}
+    .tone-grid{grid-template-columns:repeat(2,1fr);}
+    .gen-form-row{grid-template-columns:1fr;}
+    .main-tab{font-size:11px;padding:8px 3px;}
+    .flow-steps{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ONBOARDING -->
+<div id="onboarding">
+  <div class="ob-card">
+    <div class="ob-header">
+      <div class="ob-logo">📊</div>
+      <div class="ob-title">ようこそ！<span>はじめに3分だけ</span></div>
+      <div class="ob-subtitle">初回セットアップをご確認ください。<br>一度やればあとはずっと使えます。</div>
+    </div>
+    <div class="ob-steps">
+      <div class="ob-step">
+        <div class="ob-num">1</div>
+        <div>
+          <div class="ob-step-title">このHTMLファイルをブラウザで開く</div>
+          <div class="ob-step-desc"><strong>Chrome・Edge・Safari</strong> にドラッグ＆ドロップするだけ。インストール不要です。</div>
+        </div>
+      </div>
+      <div class="ob-step">
+        <div class="ob-num">2</div>
+        <div>
+          <div class="ob-step-title">アクセスコードを入力する</div>
+          <div class="ob-step-desc">購入後にcoconaraのメッセージでお送りしたアクセスコード（<strong>GBP-XXXX-XXX</strong>形式）を上部の欄に入力してください。次回から自動入力されます。</div>
+        </div>
+      </div>
+      <div class="ob-step">
+        <div class="ob-num">3</div>
+        <div>
+          <div class="ob-step-title">店舗情報を入力して保存</div>
+          <div class="ob-step-desc">ジャンル・店舗名・エリアを入力するだけ。一度入力すれば次回から自動入力されます。</div>
+        </div>
+      </div>
+      <div class="ob-step">
+        <div class="ob-num">4</div>
+        <div>
+          <div class="ob-step-title">「今週のネタを提案」→ 選んで生成するだけ！</div>
+          <div class="ob-step-desc">AIが季節・トレンドに合わせてネタ候補を提示します。選んでボタンを押せば30秒で投稿文完成。</div>
+        </div>
+      </div>
+    </div>
+    <div class="ob-footer">
+      <button class="btn-start" onclick="closeOnboarding()">✓ わかった！はじめる</button>
+      <div class="ob-skip"><a onclick="closeOnboarding()">スキップ</a></div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <header>
+    <div class="badge">AI-Powered Generator</div>
+    <h1>Google ビジネス<br><span>投稿文ジェネレーター</span></h1>
+    <p class="subtitle">AIが今週のネタを提案 → 選ぶだけで投稿文・ハッシュタグ・タイミングが自動生成</p>
+  </header>
+
+  <!-- PASSWORD -->
+  <div class="api-bar">
+    <span class="api-label">🔑 アクセスコード</span>
+    <input type="password" id="userPassword" placeholder="GBP-XXXX-XXX" style="flex:1;min-width:160px;font-family:'Space Mono',monospace;font-size:12px;" oninput="savePassword(this.value)">
+    <span id="passStatus" style="font-size:11px;color:var(--text-muted);white-space:nowrap;"></span>
+  </div>
+
+  <!-- TABS -->
+  <div class="main-tabs">
+    <button class="main-tab active" onclick="switchTab('generate',this)">✦ 投稿文を生成</button>
+    <button class="main-tab" onclick="switchTab('howto',this)">📋 Googleへの投稿方法</button>
+    <button class="main-tab" onclick="switchTab('faq',this)">❓ よくある質問</button>
+  </div>
+
+  <!-- PANE: GENERATE -->
+  <div class="pane active" id="pane-generate">
+
+    <!-- 店舗設定（保存済み情報） -->
+    <div class="settings-card">
+      <div class="settings-title">🏪 店舗設定（保存されます）</div>
+      <div class="settings-grid">
+        <div class="field">
+          <label>店舗ジャンル <span class="required">必須</span></label>
+          <select id="genre" onchange="saveSettings()">
+            <option value="">選択してください</option>
+            <option>カフェ・コーヒーショップ</option><option>レストラン・定食屋</option><option>ラーメン・麺類</option>
+            <option>居酒屋・バー</option><option>ケーキ・スイーツ店</option><option>美容室・ヘアサロン</option>
+            <option>ネイルサロン</option><option>エステ・整体</option><option>整骨院・接骨院</option>
+            <option>歯科医院</option><option>アパレル・ファッション</option><option>雑貨・インテリア</option>
+            <option>フィットネスジム</option><option>学習塾・スクール</option><option>ペットショップ・トリミング</option>
+            <option>その他小売</option><option>その他サービス</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>店舗名（任意）</label>
+          <input type="text" id="storeName" placeholder="例：カフェ グリーン" oninput="saveSettings()">
+        </div>
+        <div class="field">
+          <label>エリア（市区町村）</label>
+          <input type="text" id="area" placeholder="例：宇都宮市" oninput="saveSettings()">
+        </div>
+      </div>
+    </div>
+
+    <!-- STEP FLOW INDICATOR -->
+    <div class="flow-steps">
+      <div class="flow-step active" id="flow1"><div class="flow-num">1</div>ネタを提案してもらう</div>
+      <div class="flow-arrow">›</div>
+      <div class="flow-step" id="flow2"><div class="flow-num">2</div>ネタを選ぶ</div>
+      <div class="flow-arrow">›</div>
+      <div class="flow-step" id="flow3"><div class="flow-num">3</div>投稿文を生成</div>
+    </div>
+
+    <!-- STEP 1: ネタ提案 -->
+    <div class="suggest-card">
+      <div class="suggest-header">
+        <div class="suggest-header-left">
+          <div class="suggest-header-title">💡 今週の投稿ネタをAIが提案</div>
+          <div class="suggest-header-sub">季節・地域の催事・トレンドを踏まえた候補が届きます</div>
+        </div>
+        <button class="btn-suggest" id="suggestBtn" onclick="suggestTopics()">✦ ネタを提案してもらう</button>
+      </div>
+      <div class="suggest-loading" id="suggestLoading">
+        <div class="suggest-spinner"></div>
+        <div style="font-size:12px;color:var(--text-dim);font-family:'Space Mono',monospace;" id="suggestLoadingText">今週のトレンドを調査中...</div>
+      </div>
+      <div class="suggest-body" id="suggestBody">
+        <div class="suggest-intro" id="suggestIntro"></div>
+        <div class="topic-cards" id="topicCards"></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);">
+          <label style="margin-bottom:6px;display:block;">✏️ 自分でネタを入力する（任意）</label>
+          <textarea id="customAppeal" placeholder="AIの提案以外のネタがあれば入力してください" style="margin-bottom:8px;"></textarea>
+        </div>
+        <button class="btn-generate" id="goGenBtn" onclick="showGenCard()" style="margin-top:4px;">次へ：投稿文の設定 →</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: 生成設定 -->
+    <div class="gen-card" id="genCard">
+      <div class="gen-card-title">✦ STEP 2 ― 投稿文の設定</div>
+
+      <div class="selected-topic-preview" id="selectedPreview" style="display:none;"></div>
+
+      <div class="gen-form-grid">
+        <div class="field">
+          <label>ターゲット顧客</label>
+          <div class="chips" id="targetChips">
+            <div class="chip active" data-val="近隣住民">近隣住民</div>
+            <div class="chip" data-val="20代女性">20代女性</div>
+            <div class="chip" data-val="30代〜40代女性">30代〜40代女性</div>
+            <div class="chip" data-val="ファミリー">ファミリー</div>
+            <div class="chip" data-val="ビジネスマン">ビジネスマン</div>
+            <div class="chip" data-val="シニア層">シニア層</div>
+            <div class="chip" data-val="学生">学生</div>
+            <div class="chip" data-val="観光客">観光客</div>
+          </div>
+        </div>
+        <div class="field">
+          <label>投稿のトーン</label>
+          <div class="tone-grid">
+            <div class="tone-card active" data-tone="friendly"><div class="emoji">😊</div><div class="tone-name">親しみやすい</div><div class="tone-desc">温かく丁寧</div></div>
+            <div class="tone-card" data-tone="cool"><div class="emoji">✨</div><div class="tone-name">スタイリッシュ</div><div class="tone-desc">洗練・クール</div></div>
+            <div class="tone-card" data-tone="casual"><div class="emoji">🎉</div><div class="tone-name">カジュアル</div><div class="tone-desc">ポップ・元気</div></div>
+            <div class="tone-card" data-tone="professional"><div class="emoji">💼</div><div class="tone-name">プロ</div><div class="tone-desc">信頼・専門</div></div>
+            <div class="tone-card" data-tone="storytelling"><div class="emoji">📖</div><div class="tone-name">ストーリー</div><div class="tone-desc">想いを伝える</div></div>
+            <div class="tone-card" data-tone="urgency"><div class="emoji">⚡</div><div class="tone-name">限定感</div><div class="tone-desc">行動を促す</div></div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-generate" id="generateBtn" onclick="generate()">✦ 投稿文を生成する</button>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+    <div class="loading" id="loading"><div class="spinner"></div><p class="loading-text" id="loadingText">投稿文を生成中...</p></div>
+
+    <div class="result-area" id="resultArea">
+      <div class="result-header">
+        <div class="result-title">GENERATED OUTPUT</div>
+        <div class="result-btns">
+          <button class="btn-sm" id="copyBtn" onclick="copyAll()">📋 全文コピー</button>
+          <button class="btn-sm" onclick="showPostGuide()">📤 Googleへの投稿手順</button>
+        </div>
+      </div>
+      <div class="result-sections" id="resultSections"></div>
+      <button class="btn-regen" onclick="generate()">↻ もう一度生成する</button>
+    </div>
+
+    <div id="postGuide">
+      <div class="guide-header">
+        <div class="guide-header-title">📤 Googleビジネスへの投稿手順</div>
+        <div class="guide-header-sub">全4ステップ</div>
+      </div>
+      <div class="stepper">
+        <div class="step-dots" id="stepDots"></div>
+        <div id="stepContent"></div>
+        <div class="step-nav" id="stepNav"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE: HOWTO -->
+  <div class="pane" id="pane-howto">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+      <div style="padding:20px 24px 16px;background:rgba(56,189,248,0.05);border-bottom:1px solid var(--border);">
+        <div style="font-size:16px;font-weight:900;margin-bottom:4px;">Googleビジネスへの投稿方法</div>
+        <div style="font-size:12px;color:var(--text-muted);">生成した文章をGoogleビジネスプロフィールに投稿する完全ガイド</div>
+      </div>
+      <div style="padding:20px;display:grid;gap:14px;">
+        <div class="howto-step"><div class="howto-icon">1️⃣</div><div><div class="howto-title">投稿本文とハッシュタグをコピーする</div><div class="howto-body">生成結果の「📝 投稿本文」右上の <strong>COPYボタン</strong> をクリック。または <strong>「📋 全文コピー」</strong> で一括コピーできます。</div></div></div>
+        <div class="howto-step"><div class="howto-icon">2️⃣</div><div><div class="howto-title">Googleビジネスプロフィール管理画面を開く</div><div class="howto-body">ブラウザで <strong><a href="https://business.google.com" target="_blank">business.google.com</a></strong> にアクセス、またはGoogleで自分の店舗名を検索して「投稿を追加」をクリック。</div></div></div>
+        <div class="howto-step"><div class="howto-icon">3️⃣</div><div><div class="howto-title">投稿タイプを選んで貼り付ける</div><div class="howto-body">通常は <strong>「最新情報」</strong> を選択。セール→「特典」、イベント→「イベント」。写真を1枚追加すると閲覧数が約2〜3倍になります。</div></div></div>
+        <div class="howto-step"><div class="howto-icon">4️⃣</div><div><div class="howto-title">「公開」ボタンを押して完了</div><div class="howto-body">数分以内にGoogleマップ・検索結果に反映。投稿は <strong>7日間表示</strong>。毎週同じ曜日に投稿するとGoogleの評価が上がります。</div></div></div>
+        <div style="background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.2);border-radius:9px;padding:13px 15px;">
+          <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:5px;">💡 効果を最大化するコツ</div>
+          <div style="font-size:12px;color:var(--text-dim);line-height:1.8;">✅ 写真は<strong style="color:var(--text);">明るい自然光</strong>で撮影すると見栄えUP<br>✅ 投稿頻度は<strong style="color:var(--text);">週1回以上</strong>が目安<br>✅ <strong style="color:var(--text);">行動ボタン</strong>（予約・電話）を設定すると問い合わせが増える<br>✅ <strong style="color:var(--text);">インサイト</strong>を月1回チェックして反応の良いネタを把握しよう</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANE: FAQ -->
+  <div class="pane" id="pane-faq">
+    <div class="faq-list">
+      <div class="faq-section-title">🔧 セットアップ・準備</div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)"><div class="faq-q-text">APIキーとは？お金がかかりますか？</div><div class="faq-icon">+</div></div><div class="faq-a">APIキーはこのツールがAI（Claude）と通信するための合言葉です。Anthropicのアカウントを作ると <strong>$5分の無料クレジット</strong> が付与されます。投稿文1回の生成コストは約<span class="code">$0.01〜0.02</span>（1〜2円）なので、無料分だけで <strong>250〜500回</strong> 使えます。<br><br>取得方法：<a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a> → メール登録 → 「API Keys」→「Create Key」</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)"><div class="faq-q-text">HTMLファイルはどうやって開きますか？</div><div class="faq-icon">+</div></div><div class="faq-a">ダウンロードした<span class="code">.html</span>ファイルを <strong>Chrome・Edge・Safari</strong> にドラッグ＆ドロップするだけです。⚠️ Internet Explorer（IE）では動作しません。</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)"><div class="faq-q-text">APIキーを入力したのに「エラー」が出ます</div><div class="faq-icon">+</div></div><div class="faq-a">① <strong>キーの前後にスペースが入っている</strong> → 貼り直してください。<br>② <strong>キーが<span class="code">sk-ant-</span>で始まっていない</strong> → 正しいキーを確認してください。<br>③ <strong>無料クレジットが切れた</strong> → <a href="https://console.anthropic.com/" target="_blank">コンソール</a> でチャージしてください（$5〜）。</div></div>
+      <div class="faq-section-title">✍️ 使い方について</div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)"><div class="faq-q-text">ネタの提案はどんな情報をもとに作られますか？</div><div class="faq-icon">+</div></div><div class="faq-a">入力した <strong>店舗ジャンル・エリア・店舗名</strong> と、<strong>現在の季節・月のイベント・地域の催事</strong> をもとにAIが提案します。エリアを入力するとより地域に密着したネタが生成されます。</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)"><div class="faq-q-text">生成した文章をそのまま使ってもいいですか？</div><div class="faq-icon">+</div></div><div class="faq-a">そのまま使えますが、価格・営業時間などの具体的な数字や、実際のメニュー名を確認して微調整することをおすすめします。</div></div>
+      <div class="faq-item"><div class="faq-q" onclick="toggleFaq(this)"><div class="faq-q-text">入力したお店の情報は外部に送られますか？</div><div class="faq-icon">+</div></div><div class="faq-a">入力情報は文章生成のためだけにAnthropicのAIに一時的に送信されます。<strong>このツール自体はサーバーを持っておらず</strong>、入力内容を保存・収集しません。</div></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ONBOARDING
+function closeOnboarding() {
+  const el = document.getElementById('onboarding');
+  el.style.opacity = '0';
+  el.style.transition = 'opacity 0.3s';
+  setTimeout(() => { el.style.display='none'; }, 300);
+  localStorage.setItem('ob_seen_v4','1');
+}
+if (localStorage.getItem('ob_seen_v4')) document.getElementById('onboarding').style.display='none';
+
+// PASSWORD
+const savedPass = localStorage.getItem('gbp_password');
+if (savedPass) { document.getElementById('userPassword').value=savedPass; setPassStatus(true); }
+function savePassword(v) { if(v.length>4){ localStorage.setItem('gbp_password',v); setPassStatus(true); } else setPassStatus(false); }
+function setPassStatus(ok) { const el=document.getElementById('passStatus'); el.textContent=ok?'✓ 保存済み':''; el.style.color=ok?'var(--accent)':'var(--text-muted)'; }
+function getPassword() { return document.getElementById('userPassword').value.trim(); }
+
+// STORE SETTINGS
+function saveSettings() {
+  localStorage.setItem('gbp_genre', document.getElementById('genre').value);
+  localStorage.setItem('gbp_store', document.getElementById('storeName').value);
+  localStorage.setItem('gbp_area',  document.getElementById('area').value);
+}
+function loadSettings() {
+  const g=localStorage.getItem('gbp_genre'), s=localStorage.getItem('gbp_store'), a=localStorage.getItem('gbp_area');
+  if(g) document.getElementById('genre').value=g;
+  if(s) document.getElementById('storeName').value=s;
+  if(a) document.getElementById('area').value=a;
+}
+loadSettings();
+
+// TABS
+function switchTab(id,btn) {
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.main-tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById('pane-'+id).classList.add('active');
+  btn.classList.add('active');
+}
+
+// CHIPS / TONES
+document.querySelectorAll('#targetChips .chip').forEach(c=>c.addEventListener('click',()=>c.classList.toggle('active')));
+document.querySelectorAll('.tone-card').forEach(card=>{
+  card.addEventListener('click',()=>{ document.querySelectorAll('.tone-card').forEach(c=>c.classList.remove('active')); card.classList.add('active'); });
+});
+
+// FLOW INDICATOR
+function setFlow(step) {
+  for(let i=1;i<=3;i++){
+    const el=document.getElementById('flow'+i);
+    el.classList.remove('active','done');
+    if(i===step) el.classList.add('active');
+    else if(i<step) el.classList.add('done');
+  }
+}
+
+// ===== SUGGEST TOPICS =====
+const suggestLoadingMsgs = ['今週のトレンドを調査中...','季節のイベントをチェック中...','地域の情報を収集中...','ネタ候補を整理中...'];
+let suggestInterval;
+let selectedTopic = null;
+
+async function suggestTopics() {
+  const genre = document.getElementById('genre').value;
+  if (!genre) { alert('先に店舗ジャンルを選択してください。'); return; }
+  const pw = getPassword();
+  if (!pw) { alert('アクセスコードを入力してください。購入後にお送りしたコードを入力してください。'); return; }
+
+  const area = document.getElementById('area').value.trim();
+  const storeName = document.getElementById('storeName').value.trim();
+  const now = new Date();
+  const month = now.getMonth()+1;
+  const week = Math.ceil(now.getDate()/7);
+
+  document.getElementById('suggestBody').classList.remove('show');
+  document.getElementById('suggestLoading').classList.add('show');
+  document.getElementById('suggestBtn').disabled=true;
+
+  let idx=0;
+  suggestInterval=setInterval(()=>{ idx=(idx+1)%suggestLoadingMsgs.length; document.getElementById('suggestLoadingText').textContent=suggestLoadingMsgs[idx]; },1600);
+
+  const prompt=`あなたはGoogleビジネスプロフィールの集客専門家です。
+以下の店舗に対して、今週のGoogle ビジネス投稿にぴったりなネタ候補を5〜6個提案してください。
+
+【店舗情報】
+- ジャンル: ${genre}
+${storeName?`- 店舗名: ${storeName}`:''}
+${area?`- エリア: ${area}`:''}
+- 現在: ${month}月第${week}週
+
+【提案のポイント】
+- 今の季節感（春夏秋冬・梅雨・暑さ寒さなど）に関連するネタ
+- ${month}月ならではのイベント・記念日・行事（例：母の日、父の日、夏至、お盆、クリスマス、年末年始など）
+${area?`- ${area}地域の催事・観光・地域行事と絡めたネタ`:'- 地域の季節イベントと絡めたネタ'}
+- 業種特有の季節メニュー・サービス・キャンペーンのネタ
+- 集客効果が高いトレンド（新メニュー・スタッフ紹介・お客様の声・ビフォーアフターなど）
+
+以下のJSON形式のみで出力してください。説明文・コードブロック不要。
+
+{"season_context":"今の季節・タイミングの簡単な説明（2文程度）","topics":[{"emoji":"絵文字","title":"ネタのタイトル（20文字以内）","description":"具体的な内容・例（40〜60文字）","tags":["タグ1","タグ2"],"reason":"このネタが効果的な理由（30文字）"},{"emoji":"絵文字","title":"...","description":"...","tags":["..."],"reason":"..."}]}`;
+
+  try {
+    const res=await fetch('https://gbp-proxy.tsubaroku1792.workers.dev',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({password:getPassword(),payload:{model:'claude-sonnet-4-20250514',max_tokens:1200,messages:[{role:'user',content:prompt}]}})
+    });
+    const data=await res.json();
+    clearInterval(suggestInterval);
+    document.getElementById('suggestLoading').classList.remove('show');
+
+    if(data.error){ alert('APIエラー: '+data.error.message); document.getElementById('suggestBtn').disabled=false; return; }
+
+    const raw=data.content?.map(i=>i.text||'').join('').trim();
+    let parsed;
+    try{ parsed=JSON.parse(raw.replace(/```json|```/g,'').trim()); }
+    catch{ alert('提案の解析に失敗しました。もう一度お試しください。'); document.getElementById('suggestBtn').disabled=false; return; }
+
+    renderTopics(parsed);
+    document.getElementById('suggestBtn').disabled=false;
+    setFlow(2);
+  } catch(err){
+    clearInterval(suggestInterval);
+    document.getElementById('suggestLoading').classList.remove('show');
+    document.getElementById('suggestBtn').disabled=false;
+    alert('通信エラー: '+err.message);
+  }
+}
+
+function renderTopics(data) {
+  document.getElementById('suggestIntro').innerHTML=`<strong>📅 ${esc(data.season_context)}</strong><br>あなたのお店に合うネタをクリックして選んでください（複数選択可）。`;
+  document.getElementById('topicCards').innerHTML=data.topics.map((t,i)=>`
+    <div class="topic-card" id="topic-${i}" onclick="selectTopic(${i},${JSON.stringify(t).replace(/"/g,'&quot;')})">
+      <div class="topic-emoji">${t.emoji}</div>
+      <div class="topic-content">
+        <div class="topic-title">${esc(t.title)}</div>
+        <div class="topic-desc">${esc(t.description)}</div>
+        <div class="topic-tags">${t.tags.map(tag=>`<span class="topic-tag">${esc(tag)}</span>`).join('')}<span class="topic-tag" style="background:rgba(251,146,60,0.1);border-color:rgba(251,146,60,0.25);color:var(--accent3);">💡 ${esc(t.reason)}</span></div>
+      </div>
+      <div class="topic-check" id="check-${i}"></div>
+    </div>`).join('');
+  document.getElementById('suggestBody').classList.add('show');
+}
+
+let selectedTopics = [];
+function selectTopic(idx, topicObj) {
+  const card=document.getElementById('topic-'+idx);
+  const check=document.getElementById('check-'+idx);
+  const i=selectedTopics.findIndex(t=>t._idx===idx);
+  if(i>=0){
+    selectedTopics.splice(i,1);
+    card.classList.remove('selected');
+    check.textContent='';
+  } else {
+    topicObj._idx=idx;
+    selectedTopics.push(topicObj);
+    card.classList.add('selected');
+    check.textContent='✓';
+  }
+}
+
+function showGenCard() {
+  const custom=document.getElementById('customAppeal').value.trim();
+  if(selectedTopics.length===0 && !custom){ alert('ネタを選ぶか、自分でネタを入力してください。'); return; }
+  document.getElementById('genCard').classList.add('show');
+
+  const preview=document.getElementById('selectedPreview');
+  if(selectedTopics.length>0 || custom){
+    let parts=selectedTopics.map(t=>`${t.emoji} ${t.title}：${t.description}`);
+    if(custom) parts.push(`✏️ ${custom}`);
+    preview.innerHTML=`<strong style="color:var(--accent);">選択したネタ：</strong><br>${parts.map(p=>`• ${esc(p)}`).join('<br>')}`;
+    preview.style.display='block';
+  }
+  setFlow(3);
+  document.getElementById('genCard').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ===== GENERATE POST =====
+const loadingMsgs=['AIが投稿文を考えています...','ハッシュタグを最適化中...','投稿タイミングを分析中...','もうすぐ完成です...'];
+let loadingInterval, generatedText='';
+
+async function generate() {
+  const pw=getPassword();
+  if(!pw){ showError('アクセスコードを入力してください。'); return; }
+  const genre=document.getElementById('genre').value;
+  if(!genre){ showError('店舗ジャンルを選択してください。'); return; }
+
+  const custom=document.getElementById('customAppeal').value.trim();
+  if(selectedTopics.length===0 && !custom){ showError('ネタを選択するか入力してください。'); return; }
+
+  const area=document.getElementById('area').value.trim();
+  const storeName=document.getElementById('storeName').value.trim();
+  const targets=[...document.querySelectorAll('#targetChips .chip.active')].map(c=>c.dataset.val).join('、');
+  const tone=document.querySelector('.tone-card.active')?.dataset.tone||'friendly';
+  const toneMap={friendly:'親しみやすく温かい丁寧な文体',cool:'洗練されたスタイリッシュな文体',casual:'ポップでカジュアルな元気な文体',professional:'信頼感と専門性を感じさせるプロフェッショナルな文体',storytelling:'背景や想いを伝えるストーリーテリング型の文体',urgency:'行動を促す緊急感・限定感を強調した文体'};
+
+  let appealParts=selectedTopics.map(t=>`【${t.title}】${t.description}`);
+  if(custom) appealParts.push(`【追加情報】${custom}`);
+  const appeal=appealParts.join('\n');
+
+  hideError(); showLoading(); hideResult();
+  document.getElementById('postGuide').classList.remove('show');
+
+  const prompt=`あなたはGoogleビジネスプロフィールの投稿文の専門家です。以下の情報をもとに、集客効果の高いGoogle ビジネス投稿文を作成してください。
+
+【店舗情報】
+- ジャンル: ${genre}
+${storeName?`- 店舗名: ${storeName}`:''}
+${area?`- エリア: ${area}`:''}
+- 今週の訴求ネタ:
+${appeal}
+- ターゲット顧客: ${targets||'一般的な近隣顧客'}
+- 文体のトーン: ${toneMap[tone]}
+
+以下のJSON形式のみで出力。説明文・コードブロック不要。
+
+{"post":"投稿本文（300〜400文字。改行あり。絵文字使用。SEOキーワード自然に含む。季節感・エリア感を盛り込む）","hashtags":["タグ1","タグ2","タグ3","タグ4","タグ5"],"timing":[{"icon":"絵文字","title":"最適な曜日・時間帯","detail":"理由50文字"},{"icon":"絵文字","title":"投稿頻度のアドバイス","detail":"週1の戦略50文字"},{"icon":"絵文字","title":"プラスアルファのヒント","detail":"業種特化コツ50文字"}],"seo_point":"SEO効果ポイント1〜2文"}`;
+
+  let idx=0;
+  loadingInterval=setInterval(()=>{ idx=(idx+1)%loadingMsgs.length; document.getElementById('loadingText').textContent=loadingMsgs[idx]; },1800);
+
+  try{
+    const res=await fetch('https://gbp-proxy.tsubaroku1792.workers.dev',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({password:getPassword(),payload:{model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]}})
+    });
+    const data=await res.json();
+    clearInterval(loadingInterval);
+
+    if(data.error){
+      const m=data.error.message||'';
+      if(m.includes('パスワード')) showError('アクセスコードが正しくありません。購入後にお送りしたコードを確認してください。');
+      else showError('エラーが発生しました。しばらくしてからもう一度お試しください。');
+      hideLoading(); return;
+    }
+
+    const raw=data.content?.map(i=>i.text||'').join('').trim();
+    let parsed;
+    try{ parsed=JSON.parse(raw.replace(/```json|```/g,'').trim()); }
+    catch{ showError('生成結果の解析に失敗しました。もう一度お試しください。'); hideLoading(); return; }
+
+    generatedText=`【投稿本文】\n${parsed.post}\n\n【ハッシュタグ】\n${parsed.hashtags.map(h=>'#'+h).join(' ')}\n\n【投稿タイミング】\n${parsed.timing.map(t=>`${t.icon} ${t.title}: ${t.detail}`).join('\n')}\n\n【SEOポイント】\n${parsed.seo_point}`;
+    renderResult(parsed);
+    hideLoading(); showResult();
+  }catch(err){
+    clearInterval(loadingInterval);
+    hideLoading();
+    showError('通信エラー: '+err.message);
+  }
+}
+
+function renderResult(d){
+  document.getElementById('resultSections').innerHTML=`
+    <div class="result-section">
+      <div class="section-label green">📝 投稿本文 <button class="copy-btn" onclick="copySection('${encodeURIComponent(d.post)}',this)">COPY</button></div>
+      <div class="section-content">${esc(d.post)}</div>
+    </div>
+    <div class="result-section">
+      <div class="section-label purple"># ハッシュタグ <button class="copy-btn" onclick="copySection('${encodeURIComponent(d.hashtags.map(h=>'#'+h).join(' '))}',this)">COPY</button></div>
+      <div class="section-content hashtag-text">${d.hashtags.map(h=>'#'+esc(h)).join('　')}</div>
+    </div>
+    <div class="result-section">
+      <div class="section-label orange">🕐 投稿タイミングアドバイス</div>
+      <div class="timing-grid">${d.timing.map(t=>`<div class="timing-item"><div class="timing-icon">${t.icon}</div><div><div class="timing-title">${esc(t.title)}</div><div class="timing-detail">${esc(t.detail)}</div></div></div>`).join('')}</div>
+    </div>
+    <div class="result-section">
+      <div class="section-label blue">🔍 SEO効果のポイント</div>
+      <div class="section-content">${esc(d.seo_point)}</div>
+    </div>`;
+}
+
+function copySection(enc,btn){ navigator.clipboard.writeText(decodeURIComponent(enc)).then(()=>{ const o=btn.textContent; btn.textContent='DONE ✓'; setTimeout(()=>btn.textContent=o,1800); }); }
+function copyAll(){ navigator.clipboard.writeText(generatedText).then(()=>{ const btn=document.getElementById('copyBtn'); btn.textContent='✓ コピー完了'; btn.classList.add('done'); setTimeout(()=>{ btn.textContent='📋 全文コピー'; btn.classList.remove('done'); },2000); }); }
+
+// STEPPER
+const postSteps=[
+  {icon:'📋',title:'ステップ1：投稿文をコピーする',body:`上の「📝 投稿本文」右上の <strong>COPYボタン</strong> をクリックしてください。「# ハッシュタグ」も同様にコピーしておきましょう。または <strong>「📋 全文コピー」</strong> で一括コピーできます。`},
+  {icon:'🌐',title:'ステップ2：Googleビジネスを開く',body:`ブラウザで以下のURLにアクセス：<span class="url-box">https://business.google.com</span>またはGoogleで自分の店舗名を検索して <strong>「投稿を追加」</strong> をクリック。`},
+  {icon:'✏️',title:'ステップ3：投稿タイプを選んで貼り付ける',body:`<span class="hl">セール・割引</span> → 「特典」 ／ <span class="hl">イベント</span> → 「イベント」 ／ <span class="hl">それ以外</span> → 「最新情報」<br><br>テキスト欄に投稿文を貼り付けてください。写真を1枚追加すると効果的です。`},
+  {icon:'🚀',title:'ステップ4：公開して完了！',body:`<strong>「公開」</strong>ボタンを押すと数分以内にGoogleマップ・検索に反映。投稿は <strong>7日間表示</strong>。<br><br><span class="hl">💡完了後</span> 「インサイト」から閲覧数を確認できます。月1回チェックして反応の良いネタを把握しましょう！`}
+];
+let curStep=0;
+function showPostGuide(){ curStep=0; renderStepper(); document.getElementById('postGuide').classList.add('show'); setTimeout(()=>document.getElementById('postGuide').scrollIntoView({behavior:'smooth',block:'start'}),50); }
+function renderStepper(){
+  document.getElementById('stepDots').innerHTML=postSteps.map((_,i)=>`<div class="step-dot ${i<=curStep?'active':''}" onclick="goStep(${i})"></div>`).join('');
+  const s=postSteps[curStep];
+  document.getElementById('stepContent').innerHTML=`<div class="step-panel-title"><div class="step-icon">${s.icon}</div>${esc(s.title)}</div><div class="step-panel-body">${s.body}</div>`;
+  let nav='';
+  if(curStep>0) nav+=`<button class="step-btn step-btn-prev" onclick="goStep(${curStep-1})">← 前へ</button>`;
+  if(curStep<postSteps.length-1) nav+=`<button class="step-btn step-btn-next" onclick="goStep(${curStep+1})">次へ →</button>`;
+  else nav+=`<button class="step-btn step-btn-done" onclick="document.getElementById('postGuide').classList.remove('show')">✓ 完了！</button>`;
+  document.getElementById('stepNav').innerHTML=nav;
+}
+function goStep(i){ curStep=i; renderStepper(); }
+
+// FAQ
+function toggleFaq(el){ el.parentElement.classList.toggle('open'); }
+
+// UTILS
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function showLoading(){ document.getElementById('loading').classList.add('show'); document.getElementById('generateBtn').disabled=true; }
+function hideLoading(){ document.getElementById('loading').classList.remove('show'); document.getElementById('generateBtn').disabled=false; }
+function showResult(){ document.getElementById('resultArea').classList.add('show'); }
+function hideResult(){ document.getElementById('resultArea').classList.remove('show'); }
+function showError(msg){ const el=document.getElementById('errorBox'); el.textContent='⚠ '+msg; el.classList.add('show'); }
+function hideError(){ document.getElementById('errorBox').classList.remove('show'); }
+</script>
+</body>
+</html>
